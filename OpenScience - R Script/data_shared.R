@@ -3,7 +3,7 @@ library(dplyr)
 library(ggplot2)
 
 # Set the working directory
-setwd("C:/Users/PC/Desktop/projects/R")
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 # Import the data from CSV
 data <- read.csv("./data.csv")

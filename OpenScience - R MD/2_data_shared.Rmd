@@ -1,0 +1,71 @@
+---
+title: "data_shared"
+output: html_document
+date: "2025-07-14"
+---
+
+```{r}
+data_sharing_rates <- data %>%
+group_by(Journal, Is.there.data.shared.) %>%
+summarise(Count = n()) %>%
+mutate(Proportion = Count / sum(Count)) %>%
+filter(!is.na(Is.there.data.shared.))
+print(data_sharing_rates)
+```
+
+
+``` {r}
+# Load necessary libraries
+library(dplyr)
+library(tidyr)
+library(RColorBrewer)
+# Process data to compute proportions per Journal and sharing status without NAs.
+data_sharing_rates <- data %>%
+  filter(!is.na(`Is.there.data.shared.`)) %>%
+  group_by(Journal, `Is.there.data.shared.`) %>%
+  summarise(Count = n(), .groups = "drop") %>%
+  group_by(Journal) %>%
+  mutate(Proportion = Count / sum(Count)) %>%
+  ungroup()
+
+# Reshape data into wide format using tidyr::pivot_wider.
+data_wide <- data_sharing_rates %>%
+  pivot_wider(names_from = `Is.there.data.shared.`,
+              values_from = Proportion,
+              values_fill = list(Proportion = 0))
+
+# Create a matrix for barplot (journals as rows).
+data_matrix <- as.matrix(data_wide[,-1])
+rownames(data_matrix) <- data_wide$Journal
+
+# Define colors using RColorBrewer (Set2 palette).
+cols <- brewer.pal(n = ncol(data_matrix), name = "Set2")
+
+# Create the stacked bar chart.
+mp <- barplot(
+  t(data_matrix),
+  beside = FALSE,
+  col = cols,
+  main = "Data Sharing Rates by Journal",
+  xlab = "Journal",
+  ylab = "Proportion",
+  las = 2,  # Rotate x-axis labels
+  legend.text = colnames(data_matrix),
+  args.legend = list(x = "top", horiz = TRUE, bty = "n", cex = 0.8)
+)
+
+# Add text labels for proportions within each stack.
+for (i in seq_len(ncol(data_matrix))) {
+  cs <- cumsum(data_matrix[i, ])
+  starts <- c(0, head(cs, -1))
+  mids <- (starts + cs) / 2
+  
+  for (j in seq_along(mids)) {
+    if (data_matrix[i, j] > 0) {
+      text(x = mp[i], y = mids[j],
+           labels = round(data_matrix[i, j], 2),
+           col = "white", cex = 0.8)
+    }
+  }
+}
+```
