@@ -1,0 +1,50 @@
+---
+title: "3_code_shared"
+output: html_document
+date: "2025-07-14"
+---
+
+Imports
+``` {r}
+library(dplyr)
+library(ggplot2)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+data <- read.csv("./data.csv")
+```
+
+Rate of code shared in journals (Fully, Partially, None)
+
+Code Shared Key
+
+-   $\mathbf{Fully}$ = All code mentioned is publicly accessible
+-   $\mathbf{Partially}$ = There is some code that is accessible
+-   $\mathbf{Not}$ = None of the code is accessible
+
+
+``` {r}
+code_sharing_rates <- data %>%
+  group_by(Journal, `Is.the.code.shared.`) %>%
+  summarise(Count = n()) %>%
+  mutate(Proportion = Count / sum(Count)) %>%
+  filter(!is.na(`Is.the.code.shared.`))
+print(code_sharing_rates)
+```
+
+Visualise Code Sharing
+``` {r}
+ggplot(code_sharing_rates, aes(x = Journal, y = Proportion, fill = `Is.the.code.shared.`)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Code Sharing Rates by Journal",
+       subtitle = "Proportion of Code Shared vs. Not Shared",
+       x = "Journal",
+       y = "Proportion") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom") +
+  scale_fill_brewer(palette = "Set2") +
+  geom_text(aes(label = round(Proportion, 2)),
+            position = position_stack(vjust = 0.5),
+            color = "white",
+            size = 3)
+
+```
