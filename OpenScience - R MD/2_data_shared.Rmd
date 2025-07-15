@@ -4,6 +4,14 @@ output: html_document
 date: "2025-07-14"
 ---
 
+Imports
+``` {r}
+library(dplyr)
+library(ggplot2)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+data <- read.csv("./data.csv")
+```
+
 Rate of data shared in journals (Fully, Partially, None)
 
 Data Shared Key
@@ -15,11 +23,6 @@ Data Shared Key
 
 
 ```{r}
-library(dplyr)
-library(ggplot2)
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-data <- read.csv("./data.csv")
-
 data_sharing_rates <- data %>%
   group_by(Journal, `Is.there.data.shared.`) %>%
   summarise(Count = n()) %>%
