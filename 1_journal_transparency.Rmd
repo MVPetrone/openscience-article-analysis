@@ -1,0 +1,69 @@
+---
+title: "1_journal_transparency"
+author: "Michael Vincenzo Petrone"
+output: html_document
+date: "2025-07-12"
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+This is the Journal Transparency Data
+
+- Transparency score key:
+    - 4 = Excellent = Fully shared data and code and fully accessible
+    - 3 = Good = Some shared data or code and fully accessible
+    - 2 = Basic = Some shared data or code and partially accessible
+    - 1 = Bad = Some shared data or code but not accessible
+    - N/A = No data no code shared
+
+
+```{r, message=FALSE, warning=FALSE}
+library(readr)
+library(dplyr)
+
+data <- read.csv("FINALDATA2.csv")
+
+# Calculate average transparency score by journal
+average_transparency <- data %>%
+  # First, convert the 'Transparency' column from text to numbers
+  mutate(
+    Transparency_Numeric = case_when(
+      Transparency == "Excellent" ~ 4,
+      Transparency == "Good" ~ 3,
+      Transparency == "Basic" ~ 2,
+      Transparency == "Bad" ~ 1,
+      Transparency == "N/A" ~ NA_real_, # Convert "N/A" to R's NA (Not Applicable)
+      TRUE ~ NA_real_ # Catch any other unexpected values as NA
+    )
+  ) %>%
+  # Now, group by Journal and calculate the mean of the new numeric column
+  group_by(Journal) %>%
+  summarise(AvgTransparency = round(mean(Transparency_Numeric, na.rm = TRUE), 2))
+
+# Print the result
+print(average_transparency)
+```
+
+Bar Chart Depiction
+
+```{r}
+# Optionally, reorder the data to match the original ordering
+sorted_data <- average_transparency[order(average_transparency$AvgTransparency),]
+
+barplot(
+  sorted_data$AvgTransparency,
+  names.arg = sorted_data$Journal,
+  main = "Average Transparency Score by Journal",
+  xlab = "Journal",
+  ylab = "Average Transparency Score",
+  col = "steelblue",
+  las = 2,  # Rotate axis labels for readability
+  ylim = c(0, 5)  # Set the y-axis to range from 0 to 5
+)
+
+```
+
