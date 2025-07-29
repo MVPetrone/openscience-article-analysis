@@ -25,7 +25,7 @@ This is the Journal Transparency Data
 library(readr)
 library(dplyr)
 
-data <- read.csv("FINALDATA2.csv")
+data <- read.csv("data.csv")
 
 # Calculate average transparency score by journal
 average_transparency <- data %>%

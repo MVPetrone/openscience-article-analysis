@@ -1,0 +1,268 @@
+---
+title: "3_has_code_and_accessible"
+output: html_document
+date: "2025-07-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Code Accessibility Analysis
+# This script analyzes code availability and accessibility across all articles
+# Similar to data accessibility analysis but focused on code
+
+library(dplyr)
+library(ggplot2)
+
+# Load the data
+data <- read.csv("data.csv")
+
+# Calculate the percentage of articles with code that make it accessible
+percentage_code_accessible <- data %>%
+  # Filter for articles that explicitly have code mentioned in the paper
+  filter(Is.code.explicitly.mentioned.in.the.paper. == "Yes") %>%
+  # Now, from this subset, count those that also share code
+  mutate(
+    code_shared_and_accessible = ifelse(
+      Is.the.code.shared. %in% c("Partially", "Fully"),
+      1,
+      0
+    )
+  ) %>%
+  # Summarize to get the counts and calculate percentage
+  summarise(
+    total_articles_with_code = n(),
+    articles_with_accessible_code = sum(code_shared_and_accessible, na.rm = TRUE)
+  ) %>%
+  # Calculate the percentage
+  mutate(
+    percentage = (
+      articles_with_accessible_code / total_articles_with_code
+    ) * 100
+  )
+
+# Print the result
+print(percentage_code_accessible)
+
+# --- Calculate comprehensive percentages for all categories ---
+comprehensive_code_stats <- data %>%
+  mutate(
+    # Categorize all articles into three main groups
+    article_category = case_when(
+      # Articles with no code
+      Is.code.explicitly.mentioned.in.the.paper. == "No" ~ "No Code",
+      # Articles with code that is accessible (shared)
+      Is.code.explicitly.mentioned.in.the.paper. == "Yes" & 
+        Is.the.code.shared. %in% c("Partially", "Fully") ~ "Has Code & Accessible",
+      # Articles with code that is not accessible
+      Is.code.explicitly.mentioned.in.the.paper. == "Yes" & 
+        Is.the.code.shared. == "No" ~ "Has Code & Not Accessible",
+      # Articles with code but sharing status unknown
+      Is.code.explicitly.mentioned.in.the.paper. == "Yes" & 
+        is.na(Is.the.code.shared.) ~ "Has Code & Status Unknown",
+      # Handle any other cases
+      TRUE ~ "Other/Unknown"
+    )
+  ) %>%
+  # Calculate counts and percentages for each category
+  group_by(article_category) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  mutate(
+    total_articles = sum(count),
+    percentage = (count / total_articles) * 100,
+    label = paste0(count, " (", round(percentage, 1), "%)")
+  )
+
+# Print comprehensive statistics
+cat("=== COMPREHENSIVE CODE STATISTICS ===\n")
+print(comprehensive_code_stats)
+
+# Extract specific percentages for easy reference
+pct_no_code <- comprehensive_code_stats %>% 
+  filter(article_category == "No Code") %>% 
+  pull(percentage)
+
+pct_has_code_accessible <- comprehensive_code_stats %>% 
+  filter(article_category == "Has Code & Accessible") %>% 
+  pull(percentage)
+
+pct_has_code_not_accessible <- comprehensive_code_stats %>% 
+  filter(article_category == "Has Code & Not Accessible") %>% 
+  pull(percentage)
+
+cat("\n=== KEY PERCENTAGES ===\n")
+cat("Percentage of articles having no code:", round(pct_no_code, 1), "%\n")
+cat("Percentage of articles having code and making it accessible:", round(pct_has_code_accessible, 1), "%\n")
+cat("Percentage of articles having code and not making it accessible:", round(pct_has_code_not_accessible, 1), "%\n")
+
+# --- Data Preparation for Bar Chart (Articles with Code Only) ---
+plot_data <- data %>%
+  filter(Is.code.explicitly.mentioned.in.the.paper. == "Yes") %>%
+  mutate(
+    Code_Accessibility_Category = case_when(
+      Is.the.code.shared. %in% c("Partially", "Fully") ~ "Code Shared (Accessible)",
+      Is.the.code.shared. == "No" ~ "Code Not Shared",
+      is.na(Is.the.code.shared.) ~ "Code Sharing Status Unknown",
+      TRUE ~ "Other/Unexpected Status"
+    )
+  ) %>%
+  group_by(Code_Accessibility_Category) %>%
+  summarise(Count = n()) %>%
+  ungroup() %>%
+  mutate(
+    Total_Articles = sum(Count),
+    Percentage = (Count / Total_Articles) * 100,
+    Label = paste0(Count, " (", round(Percentage, 1), "%)")
+  ) %>%
+  arrange(
+    factor(
+      Code_Accessibility_Category,
+      levels = c(
+        "Code Shared (Accessible)",
+        "Code Not Shared",
+        "Code Sharing Status Unknown",
+        "Other/Unexpected Status"
+      )
+    )
+  )
+
+# --- Create Bar Chart for Articles with Code Only ---
+bar_heights <- plot_data$Count
+names(bar_heights) <- plot_data$Code_Accessibility_Category
+
+bar_colors <- c(
+  "Code Shared (Accessible)" = "#4CAF50",      # Green
+  "Code Not Shared" = "#FFC107",               # Amber
+  "Code Sharing Status Unknown" = "#9E9E9E",   # Grey
+  "Other/Unexpected Status" = "#F44336"        # Red
+)
+
+ordered_colors <- bar_colors[names(bar_heights)]
+
+bar_midpoints <- barplot(
+  bar_heights,
+  main = "Code Accessibility Status of Articles with Explicit Code",
+  xlab = "Code Accessibility Category",
+  ylab = "Number of Articles",
+  col = ordered_colors,
+  ylim = c(0, max(bar_heights) * 1.2),
+  cex.names = 0.8,
+  las = 2
+)
+
+text(
+  x = bar_midpoints,
+  y = bar_heights,
+  labels = plot_data$Label,
+  pos = 3,
+  cex = 0.8
+)
+
+title(sub = "Distribution among articles that explicitly mention code in the paper")
+
+# --- Create Comprehensive Bar Chart for All Articles ---
+# Prepare data for the comprehensive chart
+comprehensive_plot_data <- comprehensive_code_stats %>%
+  filter(article_category %in% c("No Code", "Has Code & Accessible", "Has Code & Not Accessible")) %>%
+  arrange(factor(article_category, levels = c("Has Code & Accessible", "Has Code & Not Accessible", "No Code")))
+
+# Create bar chart for all articles
+comp_bar_heights <- comprehensive_plot_data$count
+names(comp_bar_heights) <- comprehensive_plot_data$article_category
+
+# Define colors for comprehensive chart
+comp_bar_colors <- c(
+  "Has Code & Accessible" = "#4CAF50",        # Green
+  "Has Code & Not Accessible" = "#FF9800",    # Orange
+  "No Code" = "#2196F3"                       # Blue
+)
+
+comp_ordered_colors <- comp_bar_colors[names(comp_bar_heights)]
+
+comp_bar_midpoints <- barplot(
+  comp_bar_heights,
+  main = "Comprehensive Article Classification by Code Availability and Accessibility",
+  xlab = "Article Category",
+  ylab = "Number of Articles",
+  col = comp_ordered_colors,
+  ylim = c(0, max(comp_bar_heights) * 1.2),
+  cex.names = 0.9,
+  las = 2
+)
+
+# Add labels on bars
+text(
+  x = comp_bar_midpoints,
+  y = comp_bar_heights,
+  labels = comprehensive_plot_data$label,
+  pos = 3,
+  cex = 0.9
+)
+
+title(sub = "Distribution across all articles in the dataset")
+
+# --- Create a Pie Chart for Overall Distribution ---
+pie(
+  comp_bar_heights,
+  labels = paste(names(comp_bar_heights), "\n", comprehensive_plot_data$label),
+  col = comp_ordered_colors,
+  main = "Overall Distribution of Articles by Code Status",
+  cex = 0.8
+)
+
+# --- Additional Analysis: Code Quality Metrics (for accessible code) ---
+code_quality_analysis <- data %>%
+  filter(Is.code.explicitly.mentioned.in.the.paper. == "Yes" & 
+         Is.the.code.shared. %in% c("Partially", "Fully")) %>%
+  select(
+    Documentation.quality,
+    Executability,
+    Transparency
+  ) %>%
+  # Convert to long format for analysis
+  tidyr::pivot_longer(
+    cols = everything(),
+    names_to = "Quality_Metric",
+    values_to = "Rating"
+  ) %>%
+  filter(!is.na(Rating)) %>%
+  group_by(Quality_Metric, Rating) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(Quality_Metric) %>%
+  mutate(
+    total = sum(count),
+    percentage = (count / total) * 100
+  )
+
+cat("\n=== CODE QUALITY ANALYSIS (for accessible code) ===\n")
+print(code_quality_analysis)
+
+# --- Summary Statistics Table ---
+summary_stats <- data.frame(
+  Category = c(
+    "Total Articles",
+    "Articles with Code Mentioned",
+    "Articles with Accessible Code",
+    "Articles with Non-Accessible Code",
+    "Articles with No Code"
+  ),
+  Count = c(
+    nrow(data),
+    sum(data$Is.code.explicitly.mentioned.in.the.paper. == "Yes", na.rm = TRUE),
+    sum(data$Is.code.explicitly.mentioned.in.the.paper. == "Yes" & 
+        data$Is.the.code.shared. %in% c("Partially", "Fully"), na.rm = TRUE),
+    sum(data$Is.code.explicitly.mentioned.in.the.paper. == "Yes" & 
+        data$Is.the.code.shared. == "No", na.rm = TRUE),
+    sum(data$Is.code.explicitly.mentioned.in.the.paper. == "No", na.rm = TRUE)
+  )
+) %>%
+  mutate(
+    Percentage = round((Count / nrow(data)) * 100, 1)
+  )
+
+cat("\n=== SUMMARY STATISTICS TABLE ===\n")
+print(summary_stats)
+```

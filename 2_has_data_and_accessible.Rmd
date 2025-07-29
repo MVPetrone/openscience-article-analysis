@@ -13,9 +13,9 @@ knitr::opts_chunk$set(echo = TRUE)
 library(dplyr)
 library(ggplot2)
 
-data <- read.csv("FINALDATA2.csv")
+data <- read.csv("data.csv")
 
-# Calculate the percentage
+# Calculate the percentage of articles with data that make it accessible
 percentage_data_accessible <- data %>%
   # Filter for articles that explicitly have data in the paper
   filter(Is.there.data.explicitly.in.the.paper. == "Yes") %>%
@@ -42,35 +42,77 @@ percentage_data_accessible <- data %>%
 # Print the result
 print(percentage_data_accessible)
 
-# --- Data Preparation for Bar Chart (CRITICAL STEP - DO NOT SKIP THIS) ---
-# Filter for articles that explicitly have data in the paper
-# Then categorize them based on whether the data is shared (accessible) or not.
+# --- NEW: Calculate comprehensive percentages for all categories ---
+comprehensive_stats <- data %>%
+  mutate(
+    # Categorize all articles into three main groups
+    article_category = case_when(
+      # Articles with no data
+      Is.there.data.explicitly.in.the.paper. == "No" ~ "No Data",
+      # Articles with data that is accessible (shared)
+      Is.there.data.explicitly.in.the.paper. == "Yes" & 
+        Is.there.data.shared. %in% c("Partially", "Fully") ~ "Has Data & Accessible",
+      # Articles with data that is not accessible
+      Is.there.data.explicitly.in.the.paper. == "Yes" & 
+        Is.there.data.shared. == "No" ~ "Has Data & Not Accessible",
+      # Articles with data but sharing status unknown
+      Is.there.data.explicitly.in.the.paper. == "Yes" & 
+        is.na(Is.there.data.shared.) ~ "Has Data & Status Unknown",
+      # Handle any other cases
+      TRUE ~ "Other/Unknown"
+    )
+  ) %>%
+  # Calculate counts and percentages for each category
+  group_by(article_category) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  mutate(
+    total_articles = sum(count),
+    percentage = (count / total_articles) * 100,
+    label = paste0(count, " (", round(percentage, 1), "%)")
+  )
+
+# Print comprehensive statistics
+cat("=== COMPREHENSIVE ARTICLE STATISTICS ===\n")
+print(comprehensive_stats)
+
+# Extract specific percentages for easy reference
+pct_no_data <- comprehensive_stats %>% 
+  filter(article_category == "No Data") %>% 
+  pull(percentage)
+
+pct_has_data_accessible <- comprehensive_stats %>% 
+  filter(article_category == "Has Data & Accessible") %>% 
+  pull(percentage)
+
+pct_has_data_not_accessible <- comprehensive_stats %>% 
+  filter(article_category == "Has Data & Not Accessible") %>% 
+  pull(percentage)
+
+cat("\n=== KEY PERCENTAGES ===\n")
+cat("Percentage of articles having no data:", round(pct_no_data, 1), "%\n")
+cat("Percentage of articles having data and making it accessible:", round(pct_has_data_accessible, 1), "%\n")
+cat("Percentage of articles having data and not making it accessible:", round(pct_has_data_not_accessible, 1), "%\n")
+
+# --- Data Preparation for Bar Chart (Articles with Data Only) ---
 plot_data <- data %>%
   filter(Is.there.data.explicitly.in.the.paper. == "Yes") %>%
   mutate(
     Data_Accessibility_Category = case_when(
-      # Articles with explicit data that are shared (Partially or Fully)
       Is.there.data.shared. %in% c("Partially", "Fully") ~ "Data Shared (Accessible)",
-      # Articles with explicit data that are explicitly NOT shared
       Is.there.data.shared. == "No" ~ "Data Not Shared",
-      # Articles with explicit data but sharing status is unknown/NA
       is.na(Is.there.data.shared.) ~ "Data Sharing Status Unknown",
-      # Catch any other unexpected values
       TRUE ~ "Other/Unexpected Status"
     )
   ) %>%
-  # Group by the new category and count the number of articles in each
   group_by(Data_Accessibility_Category) %>%
   summarise(Count = n()) %>%
   ungroup() %>%
-  # Calculate percentages for potential labels
   mutate(
     Total_Articles = sum(Count),
     Percentage = (Count / Total_Articles) * 100,
-    # Create a formatted label string for text display
     Label = paste0(Count, " (", round(Percentage, 1), "%)")
   ) %>%
-  # Optional: Order categories for a more intuitive plot
   arrange(
     factor(
       Data_Accessibility_Category,
@@ -83,47 +125,87 @@ plot_data <- data %>%
     )
   )
 
-# --- Prepare data for barplot() ---
-# barplot() typically takes a vector of heights and optionally names
-# IMPORTANT: Use 'plot_data' here, not 'data'
+# --- Create Bar Chart for Articles with Data Only ---
 bar_heights <- plot_data$Count
 names(bar_heights) <- plot_data$Data_Accessibility_Category
 
-# Define custom colors for the bars
 bar_colors <- c(
-  "Data Shared (Accessible)" = "#4CAF50", # Green
-  "Data Not Shared" = "#FFC107", # Amber
-  "Data Sharing Status Unknown" = "#9E9E9E", # Grey
-  "Other/Unexpected Status" = "#F44336" # Red
+  "Data Shared (Accessible)" = "#4CAF50",
+  "Data Not Shared" = "#FFC107",
+  "Data Sharing Status Unknown" = "#9E9E9E",
+  "Other/Unexpected Status" = "#F44336"
 )
 
-# Match colors to the order of categories in bar_heights
-# This ensures the correct color is applied to the correct bar
 ordered_colors <- bar_colors[names(bar_heights)]
 
-# --- Create the Bar Chart using base R's barplot() ---
-# Plot the bars and capture the midpoint locations of the bars for text labels
 bar_midpoints <- barplot(
   bar_heights,
   main = "Data Accessibility Status of Articles with Explicit Data",
   xlab = "Data Accessibility Category",
   ylab = "Number of Articles",
-  col = ordered_colors, # Apply the custom colors
-  ylim = c(0, max(bar_heights) * 1.2), # Set y-axis limit to leave space for labels
-  cex.names = 0.8, # Reduce font size of x-axis labels if needed
-  las = 2 # Rotate x-axis labels vertically for better readability
+  col = ordered_colors,
+  ylim = c(0, max(bar_heights) * 1.2),
+  cex.names = 0.8,
+  las = 2
 )
 
-# Add text labels on top of the bars
 text(
   x = bar_midpoints,
   y = bar_heights,
-  labels = plot_data$Label, # This is correct, it uses plot_data
-  pos = 3, # Position the label just above the bar
-  cex = 0.8 # Font size of the labels
+  labels = plot_data$Label,
+  pos = 3,
+  cex = 0.8
 )
 
-# Add a subtitle using title() for base R plots
 title(sub = "Distribution among articles that explicitly mention data in the paper")
 
+# --- NEW: Create Comprehensive Bar Chart for All Articles ---
+# Prepare data for the comprehensive chart
+comprehensive_plot_data <- comprehensive_stats %>%
+  filter(article_category %in% c("No Data", "Has Data & Accessible", "Has Data & Not Accessible")) %>%
+  arrange(factor(article_category, levels = c("Has Data & Accessible", "Has Data & Not Accessible", "No Data")))
+
+# Create bar chart for all articles
+comp_bar_heights <- comprehensive_plot_data$count
+names(comp_bar_heights) <- comprehensive_plot_data$article_category
+
+# Define colors for comprehensive chart
+comp_bar_colors <- c(
+  "Has Data & Accessible" = "#4CAF50",      # Green
+  "Has Data & Not Accessible" = "#FF9800",  # Orange
+  "No Data" = "#2196F3"                     # Blue
+)
+
+comp_ordered_colors <- comp_bar_colors[names(comp_bar_heights)]
+
+comp_bar_midpoints <- barplot(
+  comp_bar_heights,
+  main = "Comprehensive Article Classification by Data Availability and Accessibility",
+  xlab = "Article Category",
+  ylab = "Number of Articles",
+  col = comp_ordered_colors,
+  ylim = c(0, max(comp_bar_heights) * 1.2),
+  cex.names = 0.9,
+  las = 2
+)
+
+# Add labels on bars
+text(
+  x = comp_bar_midpoints,
+  y = comp_bar_heights,
+  labels = comprehensive_plot_data$label,
+  pos = 3,
+  cex = 0.9
+)
+
+title(sub = "Distribution across all articles in the dataset")
+
+# --- NEW: Create a Pie Chart for Overall Distribution ---
+pie(
+  comp_bar_heights,
+  labels = paste(names(comp_bar_heights), "\n", comprehensive_plot_data$label),
+  col = comp_ordered_colors,
+  main = "Overall Distribution of Articles by Data Status",
+  cex = 0.8
+)
 ```

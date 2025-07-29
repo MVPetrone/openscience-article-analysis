@@ -1,0 +1,207 @@
+---
+title: "4_accessibility_methods"
+output: html_document
+date: "2025-07-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Data Accessibility Methods Analysis
+# This script analyzes the different methods used for data accessibility
+# and calculates their usage percentages across all articles
+
+library(dplyr)
+library(ggplot2)
+
+# Load the data
+data <- read.csv("data.csv")
+
+# --- Analyze Data Accessibility Methods ---
+# Note: Adjust column name based on your actual CSV structure
+# Common column names might be: "Data.accessibility.method", "How.is.data.shared", etc.
+# Replace "Data.accessibility.method" with your actual column name
+
+accessibility_methods <- data %>%
+  # Filter for articles that have shared data (accessible data)
+  filter(Is.there.data.shared. %in% c("Partially", "Fully")) %>%
+  # Count each accessibility method
+  # Assuming the column contains methods like "GitHub", "Supplementary", "Repository", etc.
+  count(Data.accessibility.method, name = "count") %>%
+  # Remove NA values
+  filter(!is.na(Data.accessibility.method)) %>%
+  # Calculate percentages
+  mutate(
+    total_accessible_articles = sum(count),
+    percentage_of_accessible = (count / total_accessible_articles) * 100,
+    # Calculate percentage of all articles in dataset
+    percentage_of_all = (count / nrow(data)) * 100,
+    # Create labels for visualization
+    label_accessible = paste0(count, " (", round(percentage_of_accessible, 1), "%)"),
+    label_all = paste0(count, " (", round(percentage_of_all, 1), "%)")
+  ) %>%
+  # Sort by count in descending order
+  arrange(desc(count))
+
+# Print results
+cat("=== DATA ACCESSIBILITY METHODS ANALYSIS ===\n")
+cat("Total articles in dataset:", nrow(data), "\n")
+cat("Articles with accessible data:", sum(accessibility_methods$count), "\n\n")
+
+print(accessibility_methods)
+
+# --- Create summary statistics ---
+cat("\n=== ACCESSIBILITY METHOD PERCENTAGES (of accessible articles) ===\n")
+for(i in 1:nrow(accessibility_methods)) {
+  cat(accessibility_methods$Data.accessibility.method[i], ":", 
+      round(accessibility_methods$percentage_of_accessible[i], 1), "%\n")
+}
+
+cat("\n=== ACCESSIBILITY METHOD PERCENTAGES (of all articles) ===\n")
+for(i in 1:nrow(accessibility_methods)) {
+  cat(accessibility_methods$Data.accessibility.method[i], ":", 
+      round(accessibility_methods$percentage_of_all[i], 1), "%\n")
+}
+
+# --- Visualization 1: Bar Chart (Percentage of Accessible Articles) ---
+bar_heights_accessible <- accessibility_methods$count
+names(bar_heights_accessible) <- accessibility_methods$Data.accessibility.method
+
+# Define colors (adjust based on your methods)
+method_colors <- rainbow(length(bar_heights_accessible))
+
+par(mar = c(8, 4, 4, 2)) # Increase bottom margin for long labels
+
+bar_midpoints_accessible <- barplot(
+  bar_heights_accessible,
+  main = "Data Accessibility Methods Usage",
+  xlab = "",
+  ylab = "Number of Articles",
+  col = method_colors,
+  ylim = c(0, max(bar_heights_accessible) * 1.2),
+  cex.names = 0.8,
+  las = 2 # Rotate labels vertically
+)
+
+# Add labels on bars
+text(
+  x = bar_midpoints_accessible,
+  y = bar_heights_accessible,
+  labels = accessibility_methods$label_accessible,
+  pos = 3,
+  cex = 0.7
+)
+
+title(sub = "Among articles that make data accessible", line = 6)
+title(xlab = "Accessibility Method", line = 7)
+
+# --- Visualization 2: Pie Chart ---
+pie(
+  bar_heights_accessible,
+  labels = paste(names(bar_heights_accessible), "\n", 
+                accessibility_methods$label_accessible),
+  col = method_colors,
+  main = "Distribution of Data Accessibility Methods",
+  cex = 0.7
+)
+
+# --- Alternative Analysis: Include "No Data Shared" as a category ---
+comprehensive_accessibility <- data %>%
+  mutate(
+    accessibility_status = case_when(
+      # No data in paper
+      Is.there.data.explicitly.in.the.paper. == "No" ~ "No Data in Paper",
+      # Data in paper but not shared
+      Is.there.data.explicitly.in.the.paper. == "Yes" & 
+        Is.there.data.shared. == "No" ~ "Data Not Shared",
+      # Data shared - use the specific method
+      Is.there.data.explicitly.in.the.paper. == "Yes" & 
+        Is.there.data.shared. %in% c("Partially", "Fully") ~ 
+        ifelse(is.na(Data.accessibility.method), 
+               "Shared (Method Unknown)", 
+               as.character(Data.accessibility.method)),
+      # Unknown sharing status
+      Is.there.data.explicitly.in.the.paper. == "Yes" & 
+        is.na(Is.there.data.shared.) ~ "Sharing Status Unknown",
+      # Other cases
+      TRUE ~ "Other"
+    )
+  ) %>%
+  count(accessibility_status, name = "count") %>%
+  mutate(
+    percentage = (count / sum(count)) * 100,
+    label = paste0(count, " (", round(percentage, 1), "%)")
+  ) %>%
+  arrange(desc(count))
+
+# Print comprehensive results
+cat("\n=== COMPREHENSIVE ACCESSIBILITY STATUS ===\n")
+print(comprehensive_accessibility)
+
+# --- Visualization 3: Comprehensive Bar Chart ---
+comp_bar_heights <- comprehensive_accessibility$count
+names(comp_bar_heights) <- comprehensive_accessibility$accessibility_status
+
+# Create color palette
+comp_colors <- c(
+  "No Data in Paper" = "#2196F3",
+  "Data Not Shared" = "#FF9800", 
+  "Sharing Status Unknown" = "#9E9E9E"
+)
+
+# Add colors for specific methods (use rainbow for methods not predefined)
+method_names <- setdiff(names(comp_bar_heights), names(comp_colors))
+if(length(method_names) > 0) {
+  method_colors_comp <- rainbow(length(method_names))
+  names(method_colors_comp) <- method_names
+  comp_colors <- c(comp_colors, method_colors_comp)
+}
+
+comp_ordered_colors <- comp_colors[names(comp_bar_heights)]
+
+par(mar = c(10, 4, 4, 2)) # Increase bottom margin
+
+comp_bar_midpoints <- barplot(
+  comp_bar_heights,
+  main = "Comprehensive Data Accessibility Analysis",
+  xlab = "",
+  ylab = "Number of Articles",
+  col = comp_ordered_colors,
+  ylim = c(0, max(comp_bar_heights) * 1.2),
+  cex.names = 0.7,
+  las = 2
+)
+
+text(
+  x = comp_bar_midpoints,
+  y = comp_bar_heights,
+  labels = comprehensive_accessibility$label,
+  pos = 3,
+  cex = 0.7
+)
+
+title(sub = "All articles classified by data accessibility status", line = 8)
+title(xlab = "Accessibility Status/Method", line = 9)
+
+# --- Summary Table for Export ---
+summary_table <- accessibility_methods %>%
+  select(
+    Method = Data.accessibility.method,
+    Count = count,
+    `% of Accessible Articles` = percentage_of_accessible,
+    `% of All Articles` = percentage_of_all
+  ) %>%
+  mutate(
+    `% of Accessible Articles` = round(`% of Accessible Articles`, 1),
+    `% of All Articles` = round(`% of All Articles`, 1)
+  )
+
+cat("\n=== SUMMARY TABLE ===\n")
+print(summary_table)
+
+# Optional: Save results to CSV
+# write.csv(summary_table, "accessibility_methods_summary.csv", row.names = FALSE)
+# write.csv(comprehensive_accessibility, "comprehensive_accessibility_analysis.csv", row.names = FALSE)
+```
