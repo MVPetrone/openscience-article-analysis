@@ -19,3 +19,21 @@ total_articles <- nrow(data)
 percentage <- (count_filtered / total_articles) * 100
 cat(paste0(round(percentage, 2), "% of the articles share data and don't have a data sharing statement."))
 
+# Percentage of Data Accessibility Methods
+filtered_data <- data %>%
+  filter(Is.there.data.explicitly.in.the.paper. == "Yes" &
+           (Is.there.data.shared. == "Partially" |
+              Is.there.data.shared. == "Fully"))
+
+total_filtered_articles <- nrow(filtered_data)
+
+if (total_filtered_articles > 0) {
+  accessibility_method_percentages <- filtered_data %>%
+    group_by(Data.accessibility.method) %>%
+    summarise(count = n()) %>%
+    mutate(percentage = (count / total_filtered_articles) * 100)
+  
+  print(accessibility_method_percentages)
+} else {
+  cat("No articles match the specified criteria for data accessibility methods.\n")
+}
